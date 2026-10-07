@@ -59,11 +59,25 @@ def decrypt_vault_key(encrypted_vault_key: bytes, nonce: bytes, unlock_key: byte
     return aesgcm.decrypt(nonce, encrypted_vault_key, None)
 
 
-# Encrypts a password before it is sent to the database
-def encrypt_credential():
-    pass
+# Encrypts a password before it is sent to the database.
+# Returns (nonce, ciphertext). The caller stores both.
+def encrypt_credential(plaintext: str, vault_key: bytes) -> tuple[bytes, bytes]:
+    if len(vault_key) != KEY_LENGTH:
+        raise ValueError(f"vault key must be {KEY_LENGTH} bytes")
+
+    aesgcm = AESGCM(vault_key)
+    nonce = os.urandom(NONCE_LENGTH)
+    ciphertext = aesgcm.encrypt(nonce, plaintext.encode("utf-8"), None)
+    return nonce, ciphertext
 
 
-# Decrypts a password after it is retrieved from the database
-def decrypt_credential():
-    pass
+# Decrypts a password after it is retrieved from the database.
+# A wrong vault key raises cryptography.exceptions.InvalidTag.
+def decrypt_credential(ciphertext: bytes, nonce: bytes, vault_key: bytes) -> str:
+    if len(vault_key) != KEY_LENGTH:
+        raise ValueError(f"vault key must be {KEY_LENGTH} bytes")
+    if len(nonce) != NONCE_LENGTH:
+        raise ValueError(f"nonce must be {NONCE_LENGTH} bytes")
+
+    aesgcm = AESGCM(vault_key)
+    return aesgcm.decrypt(nonce, ciphertext, None).decode("utf-8")
