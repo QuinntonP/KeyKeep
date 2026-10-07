@@ -1,9 +1,29 @@
 # All methods dealing with encryption and decryption
 
+from argon2.low_level import Type, hash_secret_raw
 
-# Creates a key from the user's master password
-def derive_key():
-    pass
+KEY_LENGTH = 32
+SALT_LENGTH = 16
+ARGON2_TIME_COST = 3
+ARGON2_MEMORY_COST = 65536
+ARGON2_PARALLELISM = 1
+
+
+# Creates a key from the user's master password.
+# salt must be 16 bytes; the caller generates and stores it.
+def derive_key(master_password: str, salt: bytes) -> bytes:
+    if len(salt) != SALT_LENGTH:
+        raise ValueError(f"salt must be {SALT_LENGTH} bytes")
+
+    return hash_secret_raw(
+        secret=master_password.encode("utf-8"),
+        salt=salt,
+        time_cost=ARGON2_TIME_COST,
+        memory_cost=ARGON2_MEMORY_COST,
+        parallelism=ARGON2_PARALLELISM,
+        hash_len=KEY_LENGTH,
+        type=Type.ID,
+    )
 
 
 # Creates a random vault key used to encrypt passwords
