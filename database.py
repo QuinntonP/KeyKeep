@@ -16,10 +16,18 @@ def init_db():
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL UNIQUE,
-                master_password_hash TEXT,
+                salt BLOB,
+                vault_key BLOB,
+                vault_key_nonce BLOB,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """)
+
+        # Adds the vault key columns to databases made before they existed
+        columns = [row["name"] for row in connection.execute("PRAGMA table_info(users)")]
+        for column in ("salt", "vault_key", "vault_key_nonce"):
+            if column not in columns:
+                connection.execute(f"ALTER TABLE users ADD COLUMN {column} BLOB")
 
         connection.execute("""
             CREATE TABLE IF NOT EXISTS credentials (
@@ -37,16 +45,22 @@ def init_db():
 
 
 # Creates a new user in the database
-init_db()
-
-
-def create_user(username, master_password_hash=None):
+def create_user(username, salt, vault_key, vault_key_nonce):
     with get_connection() as connection:
         cursor = connection.execute(
-            "INSERT INTO users (username, master_password_hash) VALUES (?, ?)",
-            (username, master_password_hash),
+            "INSERT INTO users (username, salt, vault_key, vault_key_nonce) VALUES (?, ?, ?, ?)",
+            (username, salt, vault_key, vault_key_nonce),
         )
         return cursor.lastrowid
+
+
+# Grabs a single user from the database
+def get_user(username):
+    with get_connection() as connection:
+        row = connection.execute(
+            "SELECT * FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        return dict(row) if row else None
 
 
 # Save a password in the database
@@ -85,6 +99,13 @@ def list_credentials(user_id):
             "SELECT * FROM credentials WHERE user_id = ? ORDER BY site_name ASC",
             (user_id,),
         ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def list_users():
+    with get_connection() as connection:
+        rows = connection.execute(
+            "SELECT * FROM users").fetchall()
         return [dict(row) for row in rows]
 
 
